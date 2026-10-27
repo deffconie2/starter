@@ -1,0 +1,16 @@
+rules_version = '2';
+// Tylko konta z listy zespołu czytają i piszą tablicę. Wpisz tu te same e-maile co w Firebase Authentication.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isTeam() {
+      return request.auth != null && request.auth.token.email in [
+        'paula@example.com',
+        'kamil@example.com',
+        'michal@example.com'
+      ];
+    }
+    match /{col}/{id} {
+      allow read, write: if isTeam() && col in ['tasks', 'comments', 'odprawy', 'meta'];
+    }
+  }
+}
