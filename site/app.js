@@ -68,7 +68,6 @@ const CFG=window.ODPRAWY_CONFIG||{};
 let db=null, auth=null, canWrite=true, connected=false, offlineMsg="Łączę z tablicą…";
 let unsubs=[];
 let tasks=[], comments=[], odprawy=[];
-let rotation={order:["paula","kamil","michal"],index:0};
 const loaded={tasks:false,comments:false};
 let me=T[load("who")]?load("who"):null;
 let who=load("person"); if(who!=="all"&&!T[who]) who="all";
@@ -81,7 +80,6 @@ const startSec=load("sec"); if(SEC[startSec]) $("#c-sec").value=startSec; else $
 
 const isOpenTask=t=>t.kind==="task"&&!t.done;
 const prioOf=t=>SEC[t.prio]?t.prio:(isOpenTask(t)&&t.due&&t.due<=todayStr()?"pilne":"biezace");
-const currentOnDuty=()=>rotation.order[rotation.index%rotation.order.length];
 const ownerOf=t=>t.to||t.by;
 function visible(t){
   if(t.kind==="task"&&t.done&&!showDone) return false;
@@ -159,17 +157,19 @@ function renderBoard(){
 }
 function toggleDetails(){showDetails=!showDetails;renderBoard();}
 
+/* odprawa box — always credits the person using this browser, once per day */
+const odprawaToday=pid=>odprawy.some(o=>o.who===pid&&ymd(new Date(o.at))===todayStr());
 function renderRotation(){
-  const w=currentOnDuty(), p=T[w];
-  $("#rot-who").replaceChildren(av(w),p.name);
-  const seq=$("#rot-seq"); seq.replaceChildren();
-  rotation.order.forEach((id,i)=>{ if(i) seq.append(h("span",{"aria-hidden":"true"},"→")); seq.append(h("span",{class:id===w?"cur":""},T[id].name)); });
+  const p=me?T[me]:null;
+  $("#rot-who").replaceChildren(...(p?[av(me),p.name]:["Wybierz siebie"]));
+  const mine=p?odprawy.filter(o=>o.who===me).length:0;
+  $("#rot-count").textContent=p?("Twoje odprawy: "+mine):"";
   const last=odprawy.length?odprawy[odprawy.length-1]:null;
   $("#rot-last").textContent=last&&T[last.who]?("Ostatnio: "+T[last.who].name+", "+shortDay(last.at)):"Jeszcze nikt nie zaliczył odprawy.";
-  const b=$("#rot-btn");
-  b.textContent=confirmOdp?("Potwierdź: "+p.name+" "+(p.f?"była":"był")):"Odprawa odbyta";
-  b.classList.toggle("confirm",confirmOdp);
-  b.disabled=!connected||!canWrite;
+  const b=$("#rot-btn"), done=!!p&&odprawaToday(me);
+  b.textContent=done?"Zaliczona dziś ✓":confirmOdp&&p?("Potwierdź: "+(p.f?"byłam":"byłem")):"Odprawa odbyta";
+  b.classList.toggle("confirm",confirmOdp&&!done);
+  b.disabled=!connected||!canWrite||done;
 }
 
 /* render: filters */
@@ -405,14 +405,13 @@ async function removeItem(t){
   toast("Wpis usunięty");
 }
 async function logOdprawa(){
+  if(needMe()||odprawaToday(me)) return;
   if(!confirmOdp){confirmOdp=true;renderRotation();clearTimeout(odpTimer);odpTimer=setTimeout(()=>{confirmOdp=false;renderRotation();},5000);return;}
   confirmOdp=false; clearTimeout(odpTimer);
-  const w=currentOnDuty(), ref=db.collection("odprawy").doc();
-  const ok=await write(()=>ref.set({who:w,by:me||null,at:Date.now()}));
+  const ref=db.collection("odprawy").doc();
+  const ok=await write(()=>ref.set({who:me,by:me,at:Date.now()}));
   if(!ok){renderRotation();return;}
-  const order=rotation.order;
-  await write(()=>db.doc("meta/rotation").set({order,index:(rotation.index+1)%order.length,lastAt:Date.now()}));
-  toast(T[w].name+" · odprawa zaliczona","+"+PTS.odprawa+" pkt");
+  toast(T[me].name+" · odprawa zaliczona","+"+PTS.odprawa+" pkt");
   confetti();
 }
 
@@ -454,11 +453,6 @@ function start(store){
     db.collection("tasks").orderBy("createdAt").onSnapshot(s=>{tasks=s.docs.map(d=>Object.assign({id:d.id},d.data()));loaded.tasks=true;renderBoard();renderFilters();renderCols();},onErr),
     db.collection("comments").orderBy("at").onSnapshot(s=>{comments=s.docs.map(d=>Object.assign({id:d.id},d.data()));loaded.comments=true;renderBoard();renderCols();},onErr),
     db.collection("odprawy").orderBy("at").onSnapshot(s=>{odprawy=s.docs.map(d=>Object.assign({id:d.id},d.data()));renderBoard();renderRotation();},onErr),
-    db.doc("meta/rotation").onSnapshot(s=>{
-      const d=s.exists?s.data():null;
-      if(d&&Array.isArray(d.order)&&d.order.length&&d.order.every(id=>T[id])) rotation={order:[...d.order],index:Number(d.index)||0};
-      renderRotation();
-    },onErr),
   ];
 }
 function stop(){
