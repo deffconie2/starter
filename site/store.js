@@ -50,7 +50,10 @@ async function firebase(cfg){
   const base="https://www.gstatic.com/firebasejs/10.14.1/";
   for(const f of ["firebase-app-compat.js","firebase-auth-compat.js","firebase-firestore-compat.js"]) await loadScript(base+f);
   const app=window.firebase.initializeApp(cfg);
-  return {auth:app.auth(),db:app.firestore()};
+  const auth=app.auth();
+  // stay signed in on this device until "Wyloguj" (survives closing the browser)
+  await auth.setPersistence(window.firebase.auth.Auth.Persistence.LOCAL);
+  return {auth,db:app.firestore()};
 }
 
 return {local,firebase};
