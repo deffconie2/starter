@@ -54,7 +54,7 @@ const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const todayStr=()=>ymd(new Date());
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);return ymd(d)};
 const endOfDay=s=>new Date(s+"T23:59:59").getTime();
-const DUE_MIN="2020-01-01", DUE_MAX="2099-12-31";
+const DUE_MIN="2026-01-01", DUE_MAX="2099-12-31";
 const dueOk=v=>!v||(v>=DUE_MIN&&v<=DUE_MAX);
 function weekStart(){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getTime();}
 const timeLabel=ts=>new Date(ts).toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
