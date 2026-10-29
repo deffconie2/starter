@@ -82,6 +82,13 @@ button,input,select{font-family:inherit}
 .rot-btn{border:0;background:var(--hivis-ink);color:var(--hivis);border-radius:999px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;min-height:32px}
 .rot-btn.confirm{background:var(--card);color:var(--fg)}
 .rot-btn[disabled]{opacity:.5;cursor:not-allowed}
+/* view mode: hides scores, odprawa box and the add row so only the task list is on screen */
+.view-btn{margin-left:auto;padding:6px 12px}
+.view-btn svg{width:16px;height:16px}
+.view-btn+.me-btn{margin-left:0}
+.view-btn[aria-pressed="true"]{background:var(--hivis);color:var(--hivis-ink)}
+.present #scores,.present .rot,.present #details,.present .composer,.present .add-btn{display:none!important}
+.present .filters{padding-top:10px}
 .me-btn{margin-left:auto;display:inline-flex;align-items:center;gap:8px;border:0;background:var(--bar-card);color:var(--bar-fg);border-radius:999px;padding:4px 12px 4px 4px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
 
 #details{background:var(--bar);color:var(--bar-fg);padding-block:0 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px}
@@ -240,6 +247,7 @@ button,input,select{font-family:inherit}
       </div>
       <button class="rot-btn" id="rot-btn" type="button">Odprawa odbyta</button>
     </section>
+    <button class="me-btn view-btn" id="view-btn" type="button" aria-pressed="false"></button>
     <button class="me-btn" id="me-btn" type="button" aria-label="Zmień osobę"></button>
   </header>
   <section id="details" class="gut" hidden aria-label="Ranking i odznaki"></section>

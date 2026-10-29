@@ -26,6 +26,7 @@ const ICON={
   chat:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
   cal:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.5" width="16" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   trash:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V4.5h4V7M7 7l1 12.5h8L17 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>',
+  eye:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>',
   plus:'<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
 };
 
@@ -77,6 +78,7 @@ const loaded={tasks:false,comments:false};
 let me=!CFG.firebase&&T[load("who")]?load("who"):null;
 let who=load("person"); if(who!=="all"&&!T[who]) who="all";
 let showDone=load("showDone")==="1";
+let present=load("present")==="1";
 let q="";
 let kind="task", showDetails=false, confirmOdp=false, odpTimer=null, dragId=null;
 const openCards=new Set(), openThreads=new Set(), openDue=new Set(), confirmDel=new Set(), busy=new Set();
@@ -317,12 +319,12 @@ function renderComposer(){
   document.querySelectorAll(".composer .seg button").forEach(b=>{b.disabled=off;b.setAttribute("aria-pressed",String(b.dataset.kind===kind));});
   $("#c-text").placeholder=off?(connected?"Masz podgląd bez prawa edycji":"Łączę z tablicą…"):(kind==="task"?"Nowe zadanie z odprawy…":"Notatka z odprawy…");
 }
-function renderAll(){renderMe();renderBoard();renderRotation();renderFilters();renderCols();renderComposer();}
+function renderAll(){renderView();renderMe();renderBoard();renderRotation();renderFilters();renderCols();renderComposer();}
 
 /* feedback */
 let toastTimer=null;
 function toast(msg,pts){
-  const el=$("#toast"); el.replaceChildren(...(pts?[h("span",{class:"pts"},pts+" ")]:[]),msg);
+  const el=$("#toast"); el.replaceChildren(...(pts&&!present?[h("span",{class:"pts"},pts+" ")]:[]),msg);
   el.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove("show"),2600);
 }
 function banner(msg,info){const b=$("#banner");b.textContent=msg||"";b.hidden=!msg;b.classList.toggle("info",!!info);}
@@ -506,6 +508,15 @@ $("#reset-btn").addEventListener("click",async()=>{
   const ok=await write(()=>db.doc("meta/points").set({[me]:Date.now()},{merge:true}));
   if(ok){$("#who").hidden=true;toast(T[me].name+" · punkty wyzerowane");}
 });
+
+/* view mode */
+function renderView(){
+  document.body.classList.toggle("present",present);
+  const b=$("#view-btn"); b.setAttribute("aria-pressed",String(present));
+  b.replaceChildren(ic("eye"),present?"Pokaż punkty":"Tylko zadania");
+  b.title=present?"Wróć do pełnego widoku z punktami":"Schowaj punkty i odprawy, np. żeby pokazać zadania komuś spoza zespołu";
+}
+$("#view-btn").addEventListener("click",()=>{present=!present;save("present",present?"1":"0");if(present){showDetails=false;renderBoard();}renderView();});
 
 /* composer + filters */
 $("#composer").addEventListener("submit",e=>{e.preventDefault();addItem();});
