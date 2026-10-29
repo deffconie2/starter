@@ -24,7 +24,7 @@ function local(){
   function docRef(name,id){
     return {
       id,
-      set(v){col(name)[id]=JSON.parse(JSON.stringify(v));return commit();},
+      set(v,opt){const c=col(name),nv=JSON.parse(JSON.stringify(v));c[id]=opt&&opt.merge?Object.assign(c[id]||{},nv):nv;return commit();},
       update(p){const c=col(name);if(!c[id])return Promise.reject({code:"not-found"});Object.assign(c[id],p);return commit();},
       delete(){delete col(name)[id];return commit();},
       onSnapshot(cb){return listen(()=>{const v=col(name)[id];cb({exists:!!v,data:()=>v&&{...v}});});},

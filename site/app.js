@@ -69,6 +69,7 @@ function dueShort(due){
 const CFG=window.ODPRAWY_CONFIG||{};
 let db=null, auth=null, canWrite=true, connected=false, offlineMsg="Łączę z tablicą…";
 let unsubs=[];
+let resets={};
 let tasks=[], comments=[], odprawy=[];
 const loaded={tasks:false,comments:false};
 // with Firebase the person comes from the signed-in account; the picker is only for demo mode
@@ -98,23 +99,23 @@ function cmp(a,b){
   return a.createdAt-b.createdAt;
 }
 
-/* scoring — always derived from the records, never stored */
+/* scoring — always derived from the records, never stored.
+   meta/points holds per-person reset times: records before a person's reset don't count for them */
+const counts=(w,at)=>!!T[w]&&!(resets[w]&&at<resets[w]);
 function stats(){
   const ws=weekStart(), s={};
   TEAM.forEach(p=>s[p.id]={week:0,total:0,doneWeek:0,ontime:0,notes:0,comments:0,odprawy:0});
-  const add=(w,pts,at)=>{if(!s[w])return;s[w].total+=pts;if(at>=ws)s[w].week+=pts;};
+  const add=(w,pts,at)=>{if(!counts(w,at))return false;s[w].total+=pts;if(at>=ws)s[w].week+=pts;return true;};
   const ids=new Set(tasks.map(t=>t.id));
   for(const t of tasks){
-    add(t.by,PTS.add,t.createdAt);
-    if(t.kind==="note"&&s[t.by]) s[t.by].notes++;
-    if(t.kind==="task"&&t.done&&s[t.doneBy]){
-      add(t.doneBy,PTS.done,t.doneAt);
+    if(add(t.by,PTS.add,t.createdAt)&&t.kind==="note") s[t.by].notes++;
+    if(t.kind==="task"&&t.done&&add(t.doneBy,PTS.done,t.doneAt)){
       if(t.doneAt>=ws) s[t.doneBy].doneWeek++;
       if(t.due&&t.doneAt<=endOfDay(t.due)){add(t.doneBy,PTS.ontime,t.doneAt);s[t.doneBy].ontime++;}
     }
   }
-  for(const c of comments){ if(!ids.has(c.taskId)) continue; add(c.by,PTS.comment,c.at); if(s[c.by]) s[c.by].comments++; }
-  for(const o of odprawy){ add(o.who,PTS.odprawa,o.at); if(s[o.who]) s[o.who].odprawy++; }
+  for(const c of comments){ if(ids.has(c.taskId)&&add(c.by,PTS.comment,c.at)) s[c.by].comments++; }
+  for(const o of odprawy){ if(add(o.who,PTS.odprawa,o.at)) s[o.who].odprawy++; }
   return s;
 }
 function level(total){
@@ -166,7 +167,7 @@ const odprawaToday=pid=>odprawy.some(o=>o.who===pid&&ymd(new Date(o.at))===today
 function renderRotation(){
   const p=me?T[me]:null;
   $("#rot-who").replaceChildren(...(p?[av(me),p.name]:["Wybierz siebie"]));
-  const mine=p?odprawy.filter(o=>o.who===me).length:0;
+  const mine=p?odprawy.filter(o=>o.who===me&&counts(me,o.at)).length:0;
   $("#rot-count").textContent=p?("Twoje odprawy: "+mine):"";
   const last=odprawy.length?odprawy[odprawy.length-1]:null;
   $("#rot-last").textContent=last&&T[last.who]?("Ostatnio: "+T[last.who].name+", "+shortDay(last.at)):"Jeszcze nikt nie zaliczył odprawy.";
@@ -442,6 +443,7 @@ function openWho(){
   }
   box.classList.toggle("acct",!!user);
   $("#who-foot").hidden=!user;
+  confirmReset=false; renderResetBtn();
   $("#who-acct").textContent=user?user.email:"";
   $("#who").hidden=false;
   requestAnimationFrame(()=>{const b=$("#who .sheet").querySelector("button");if(b)b.focus();});
@@ -452,6 +454,18 @@ $("#who").addEventListener("click",e=>{if(e.target.id==="who"&&canCloseWho())$("
 $("#me-btn").addEventListener("click",openWho);
 $("#rot-btn").addEventListener("click",logOdprawa);
 $("#logout-btn").addEventListener("click",()=>{$("#who").hidden=true;if(auth)auth.signOut();});
+let confirmReset=false, resetTimer=null;
+function renderResetBtn(){
+  const b=$("#reset-btn"); b.hidden=!me||!connected||!canWrite;
+  b.textContent=confirmReset?"Na pewno? Kliknij jeszcze raz":"Wyzeruj moje punkty";
+}
+$("#reset-btn").addEventListener("click",async()=>{
+  if(!me) return;
+  if(!confirmReset){confirmReset=true;renderResetBtn();clearTimeout(resetTimer);resetTimer=setTimeout(()=>{confirmReset=false;renderResetBtn();},4000);return;}
+  confirmReset=false; clearTimeout(resetTimer); renderResetBtn();
+  const ok=await write(()=>db.doc("meta/points").set({[me]:Date.now()},{merge:true}));
+  if(ok){$("#who").hidden=true;toast(T[me].name+" · punkty wyzerowane");}
+});
 
 /* composer + filters */
 $("#composer").addEventListener("submit",e=>{e.preventDefault();addItem();});
@@ -475,12 +489,13 @@ function start(store){
     db.collection("tasks").orderBy("createdAt").onSnapshot(s=>{tasks=s.docs.map(d=>Object.assign({id:d.id},d.data()));loaded.tasks=true;renderBoard();renderFilters();renderCols();},onErr),
     db.collection("comments").orderBy("at").onSnapshot(s=>{comments=s.docs.map(d=>Object.assign({id:d.id},d.data()));loaded.comments=true;renderBoard();renderCols();},onErr),
     db.collection("odprawy").orderBy("at").onSnapshot(s=>{odprawy=s.docs.map(d=>Object.assign({id:d.id},d.data()));renderBoard();renderRotation();},onErr),
+    db.doc("meta/points").onSnapshot(s=>{resets=(s.exists&&s.data())||{};renderBoard();renderRotation();},onErr),
   ];
 }
 function stop(){
   unsubs.forEach(u=>{try{u()}catch(e){}}); unsubs=[];
   db=null; connected=false;
-  tasks=[]; comments=[]; odprawy=[]; loaded.tasks=loaded.comments=false;
+  tasks=[]; comments=[]; odprawy=[]; resets={}; loaded.tasks=loaded.comments=false;
 }
 
 async function sha256(text){
