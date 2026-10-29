@@ -483,6 +483,10 @@ function stop(){
   tasks=[]; comments=[]; odprawy=[]; loaded.tasks=loaded.comments=false;
 }
 
+async function sha256(text){
+  const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
 function showLogin(){
   $("#login").hidden=false; $("#l-err").textContent="";
   requestAnimationFrame(()=>$("#l-email").focus());
@@ -515,11 +519,13 @@ renderAll();
   try{ fb=await OdprawyStore.firebase(CFG.firebase); }
   catch(e){ offlineMsg="Nie udało się połączyć z serwerem tablicy."; banner("Nie załadowano Firebase. Sprawdź internet i odśwież stronę."); renderCols(); return; }
   auth=fb.auth;
-  auth.onAuthStateChanged(user=>{
+  auth.onAuthStateChanged(async user=>{
     if(!user){ stop(); me=null; $("#who").hidden=true; offlineMsg="Zaloguj się, żeby zobaczyć tablicę."; banner(""); renderAll(); showLogin(); return; }
     $("#login").hidden=true;
     const email=String(user.email||"").toLowerCase();
-    const mapped=Object.entries(CFG.emails||{}).find(([k])=>k.toLowerCase()===email);
+    // config.emails keys are SHA-256 of the lowercase e-mail, so the public repo holds no addresses
+    const hash=await sha256(email);
+    const mapped=Object.entries(CFG.emails||{}).find(([k])=>k.toLowerCase()===hash||k.toLowerCase()===email);
     me=mapped&&T[mapped[1]]?mapped[1]:null;
     start(fb.db);
     if(!me){ canWrite=false; banner("Konto "+email+" nie jest przypisane do nikogo z zespołu — masz tylko podgląd. Poproś Michała o dopisanie."); renderAll(); }
