@@ -71,7 +71,8 @@ let db=null, auth=null, canWrite=true, connected=false, offlineMsg="Łączę z t
 let unsubs=[];
 let tasks=[], comments=[], odprawy=[];
 const loaded={tasks:false,comments:false};
-let me=T[load("who")]?load("who"):null;
+// with Firebase the person comes from the signed-in account; the picker is only for demo mode
+let me=!CFG.firebase&&T[load("who")]?load("who"):null;
 let who=load("person"); if(who!=="all"&&!T[who]) who="all";
 let showDone=load("showDone")==="1";
 let q="";
@@ -125,7 +126,8 @@ function level(total){
 /* render: header */
 function renderMe(){
   const b=$("#me-btn"); b.replaceChildren();
-  if(me){ b.append(av(me),T[me].name); } else { b.append("Wybierz siebie"); }
+  b.setAttribute("aria-label",auth?"Twoje konto":"Zmień osobę");
+  if(me){ b.append(av(me),T[me].name); } else { b.append(auth?"Konto":"Wybierz siebie"); }
 }
 function renderBoard(){
   const s=stats(), box=$("#scores"); box.replaceChildren();
@@ -353,7 +355,7 @@ async function write(fn){
     toast("Nie udało się zapisać.");return false;
   }
 }
-function needMe(){ if(!me){openWho();return true;} return false; }
+function needMe(){ if(!me){ if(auth) toast("Twoje konto nie jest przypisane do nikogo z zespołu."); else openWho(); return true; } return false; }
 
 async function addItem(){
   if(needMe()) return;
@@ -427,15 +429,26 @@ async function logOdprawa(){
 /* who overlay */
 function openWho(){
   const box=$("#who-btns"); box.replaceChildren();
-  for(const p of TEAM) box.append(h("button",{type:"button","aria-pressed":String(me===p.id),onclick:()=>{me=p.id;save("who",p.id);$("#who").hidden=true;renderAll();}},av(p.id,"lg"),p.name));
   const user=auth&&auth.currentUser;
+  if(user){
+    $("#who-t").textContent="Twoje konto";
+    $("#who-p").textContent=me?("Zalogowano jako "+T[me].name+". Wpisy, zamknięte zadania i punkty są podpisane tym kontem.")
+      :"To konto nie jest przypisane do nikogo z zespołu, więc masz tylko podgląd. Poproś Michała o dopisanie.";
+    if(me) box.append(h("div",{class:"acct-who"},av(me,"lg"),T[me].name));
+  } else {
+    $("#who-t").textContent="Kim jesteś?";
+    $("#who-p").textContent="Twoje wpisy, zamknięte zadania i punkty będą podpisane tym imieniem. Ta przeglądarka zapamięta wybór.";
+    for(const p of TEAM) box.append(h("button",{type:"button","aria-pressed":String(me===p.id),onclick:()=>{me=p.id;save("who",p.id);$("#who").hidden=true;renderAll();}},av(p.id,"lg"),p.name));
+  }
+  box.classList.toggle("acct",!!user);
   $("#who-foot").hidden=!user;
   $("#who-acct").textContent=user?user.email:"";
   $("#who").hidden=false;
-  requestAnimationFrame(()=>{const b=box.querySelector("button");if(b)b.focus();});
+  requestAnimationFrame(()=>{const b=$("#who .sheet").querySelector("button");if(b)b.focus();});
 }
-$("#who").addEventListener("keydown",e=>{if(e.key==="Escape"&&me)$("#who").hidden=true;});
-$("#who").addEventListener("click",e=>{if(e.target.id==="who"&&me)$("#who").hidden=true;});
+const canCloseWho=()=>!!(me||auth);
+$("#who").addEventListener("keydown",e=>{if(e.key==="Escape"&&canCloseWho())$("#who").hidden=true;});
+$("#who").addEventListener("click",e=>{if(e.target.id==="who"&&canCloseWho())$("#who").hidden=true;});
 $("#me-btn").addEventListener("click",openWho);
 $("#rot-btn").addEventListener("click",logOdprawa);
 $("#logout-btn").addEventListener("click",()=>{$("#who").hidden=true;if(auth)auth.signOut();});
@@ -503,12 +516,13 @@ renderAll();
   catch(e){ offlineMsg="Nie udało się połączyć z serwerem tablicy."; banner("Nie załadowano Firebase. Sprawdź internet i odśwież stronę."); renderCols(); return; }
   auth=fb.auth;
   auth.onAuthStateChanged(user=>{
-    if(!user){ stop(); offlineMsg="Zaloguj się, żeby zobaczyć tablicę."; banner(""); renderAll(); showLogin(); return; }
+    if(!user){ stop(); me=null; $("#who").hidden=true; offlineMsg="Zaloguj się, żeby zobaczyć tablicę."; banner(""); renderAll(); showLogin(); return; }
     $("#login").hidden=true;
-    const mapped=(CFG.emails||{})[String(user.email||"").toLowerCase()];
-    if(T[mapped]&&me!==mapped){ me=mapped; save("who",mapped); }
+    const email=String(user.email||"").toLowerCase();
+    const mapped=Object.entries(CFG.emails||{}).find(([k])=>k.toLowerCase()===email);
+    me=mapped&&T[mapped[1]]?mapped[1]:null;
     start(fb.db);
-    if(!me) openWho();
+    if(!me){ canWrite=false; banner("Konto "+email+" nie jest przypisane do nikogo z zespołu — masz tylko podgląd. Poproś Michała o dopisanie."); renderAll(); }
   });
 })();
 })();
