@@ -12,7 +12,7 @@ const SECTIONS=[
   {k:"biezace", label:"Bieżące", hint:"Rutyna i drobne sprawy",            tone:"var(--t-biezace)"},
 ];
 const SEC=Object.fromEntries(SECTIONS.map(s=>[s.k,s]));
-const PTS={add:2,done:10,ontime:5,comment:1,odprawa:8};
+const PTS={add:2,done:5,ontime:1,comment:1,odprawa:10,due:1};
 const LEVELS=[[0,"Stażysta"],[40,"Technik"],[100,"Starszy technik"],[180,"Brygadzista"],[280,"Kierownik zmiany"],[400,"Inżynier obiektu"],[550,"Dyrektor techniczny"]];
 const BADGES=[
   {name:"Domykacz",     test:x=>x.doneWeek>=5,  hint:"5 zamkniętych zadań w tym tygodniu"},
@@ -112,6 +112,8 @@ function stats(){
   const ids=new Set(tasks.map(t=>t.id));
   for(const t of tasks){
     if(add(t.by,PTS.add,t.createdAt)&&t.kind==="note") s[t.by].notes++;
+    // +1 for giving a task a deadline; tasks from before dueBy existed credit their author
+    if(t.kind==="task"&&t.due) add(t.dueBy||t.by,PTS.due,t.dueAt||t.createdAt);
     if(t.kind==="task"&&t.done&&add(t.doneBy,PTS.done,t.doneAt)){
       if(t.doneAt>=ws) s[t.doneBy].doneWeek++;
       if(t.due&&t.doneAt<=endOfDay(t.due)){add(t.doneBy,PTS.ontime,t.doneAt);s[t.doneBy].ontime++;}
@@ -159,7 +161,7 @@ function renderBoard(){
       ));
     }
     d.append(h("p",{class:"legend"},
-      h("b",null,"Punkty: "),"wpis +"+PTS.add+" · zamknięte zadanie +"+PTS.done+" · w terminie +"+PTS.ontime+" bonusu · komentarz +"+PTS.comment+" · odprawa +"+PTS.odprawa+". ",
+      h("b",null,"Punkty: "),"odprawa +"+PTS.odprawa+" · zamknięte zadanie +"+PTS.done+" · w terminie +"+PTS.ontime+" bonusu · wpis +"+PTS.add+" · dodanie terminu +"+PTS.due+" · komentarz +"+PTS.comment+". ",
       "Punkty liczą się z wpisów, więc otwarcie zadania ponownie je odejmuje. Odznaki opisuje podpowiedź po najechaniu."));
   }
 }
@@ -369,12 +371,13 @@ async function addItem(){
   const ta=$("#c-text"), text=ta.value.trim(); if(!text) return;
   if(!dueOk($("#c-due").value)){toast("Sprawdź termin: rok "+DUE_MIN.slice(0,4)+"–"+DUE_MAX.slice(0,4));$("#c-due").focus();return;}
   const prio=SEC[$("#c-sec").value]?$("#c-sec").value:"biezace";
-  const doc={kind,text:text.slice(0,600),by:me,to:$("#c-to").value||null,due:$("#c-due").value||null,prio,done:false,doneBy:null,doneAt:null,createdAt:Date.now()};
+  const now=Date.now(), due=$("#c-due").value||null, dueCounts=kind==="task"&&!!due;
+  const doc={kind,text:text.slice(0,600),by:me,to:$("#c-to").value||null,due,dueBy:due?me:null,dueAt:due?now:null,prio,done:false,doneBy:null,doneAt:null,createdAt:now};
   const ref=db.collection("tasks").doc();
   ta.value=""; $("#c-due").value=""; $("#c-to").value="";
   if(!visible({...doc,id:ref.id})){who="all";save("person","all");q="";$("#q").value="";renderFilters();}
   const ok=await write(()=>ref.set(doc));
-  if(ok) toast(T[me].name+" · "+(kind==="task"?"dodane do: ":"notatka w: ")+SEC[prio].label,"+"+PTS.add+" pkt");
+  if(ok) toast(T[me].name+" · "+(kind==="task"?"dodane do: ":"notatka w: ")+SEC[prio].label,"+"+(PTS.add+(dueCounts?PTS.due:0))+" pkt");
   else ta.value=text;
 }
 async function setPrio(t,p){
@@ -402,9 +405,12 @@ async function setDue(t,val){
   if(needMe()||busy.has(t.id)) return;
   if(!dueOk(val)){toast("Sprawdź datę: rok "+DUE_MIN.slice(0,4)+"–"+DUE_MAX.slice(0,4));focusLater("due-"+t.id);return;}
   busy.add(t.id);
-  const ok=await write(()=>db.doc("tasks/"+t.id).update({due:val||null}));
+  // the deadline point stays with whoever first set it; changing the date doesn't move it
+  const first=!!val&&!t.due;
+  const patch=!val?{due:null,dueBy:null,dueAt:null}:first?{due:val,dueBy:me,dueAt:Date.now()}:{due:val};
+  const ok=await write(()=>db.doc("tasks/"+t.id).update(patch));
   busy.delete(t.id);
-  if(ok){openDue.delete(t.id);renderCols();toast(val?("Termin: "+dueShort(val)):"Usunięto termin");}
+  if(ok){openDue.delete(t.id);renderCols();toast(val?("Termin: "+dueShort(val)):"Usunięto termin",first&&t.kind==="task"?"+"+PTS.due+" pkt":null);}
 }
 async function addComment(t,val){
   if(needMe()) return;
