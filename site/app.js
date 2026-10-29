@@ -13,7 +13,7 @@ const SECTIONS=[
 ];
 const SEC=Object.fromEntries(SECTIONS.map(s=>[s.k,s]));
 const PTS={add:2,done:5,ontime:1,comment:1,odprawa:10,due:1};
-const LEVELS=[[0,"Stażysta"],[40,"Technik"],[100,"Starszy technik"],[180,"Brygadzista"],[280,"Kierownik zmiany"],[400,"Inżynier obiektu"],[550,"Dyrektor techniczny"]];
+const LEVELS=[[0,"Stażysta"],[20,"Technik"],[50,"Starszy technik"],[90,"Brygadzista"],[140,"Kierownik zmiany"],[200,"Inżynier obiektu"],[280,"Dyrektor techniczny"]];
 const BADGES=[
   {name:"Domykacz",     test:x=>x.doneWeek>=5,  hint:"5 zamkniętych zadań w tym tygodniu"},
   {name:"Na czas",      test:x=>x.ontime>=3,    hint:"3 zadania zamknięte w terminie"},
