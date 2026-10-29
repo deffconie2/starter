@@ -164,7 +164,9 @@ function renderBoard(){
 function toggleDetails(){showDetails=!showDetails;renderBoard();}
 
 /* odprawa box — always credits the person using this browser, once per day */
-const odprawaToday=pid=>odprawy.some(o=>o.who===pid&&ymd(new Date(o.at))===todayStr());
+// today's odprawy of a person; ones from before their points reset don't count (test clicks)
+const odprawyToday=pid=>odprawy.filter(o=>o.who===pid&&counts(pid,o.at)&&ymd(new Date(o.at))===todayStr());
+const odprawaToday=pid=>odprawyToday(pid).length>0;
 function renderRotation(){
   const p=me?T[me]:null;
   $("#rot-who").replaceChildren(...(p?[av(me),p.name]:["Wybierz siebie"]));
@@ -173,9 +175,10 @@ function renderRotation(){
   const last=odprawy.length?odprawy[odprawy.length-1]:null;
   $("#rot-last").textContent=last&&T[last.who]?("Ostatnio: "+T[last.who].name+", "+shortDay(last.at)):"Jeszcze nikt nie zaliczył odprawy.";
   const b=$("#rot-btn"), done=!!p&&odprawaToday(me);
-  b.textContent=done?"Zaliczona dziś ✓":confirmOdp&&p?("Potwierdź: "+(p.f?"byłam":"byłem")):"Odprawa odbyta";
-  b.classList.toggle("confirm",confirmOdp&&!done);
-  b.disabled=!connected||!canWrite||done;
+  b.textContent=done?(confirmOdp?"Cofnąć dzisiejszą? Kliknij ponownie":"Zaliczona dziś ✓"):confirmOdp&&p?("Potwierdź: "+(p.f?"byłam":"byłem")):"Odprawa odbyta";
+  b.title=done?"Kliknij, żeby cofnąć dzisiejszą odprawę":"";
+  b.classList.toggle("confirm",confirmOdp);
+  b.disabled=!connected||!canWrite;
 }
 
 /* render: filters */
@@ -418,9 +421,15 @@ async function removeItem(t){
   toast("Wpis usunięty");
 }
 async function logOdprawa(){
-  if(needMe()||odprawaToday(me)) return;
+  if(needMe()) return;
   if(!confirmOdp){confirmOdp=true;renderRotation();clearTimeout(odpTimer);odpTimer=setTimeout(()=>{confirmOdp=false;renderRotation();},5000);return;}
   confirmOdp=false; clearTimeout(odpTimer);
+  if(odprawaToday(me)){ // second click on "Zaliczona dziś" undoes today's odprawa
+    const ids=odprawyToday(me).map(o=>o.id);
+    const ok=await write(()=>Promise.all(ids.map(id=>db.doc("odprawy/"+id).delete())));
+    renderRotation(); if(ok) toast(T[me].name+" · dzisiejsza odprawa cofnięta");
+    return;
+  }
   const ref=db.collection("odprawy").doc();
   const ok=await write(()=>ref.set({who:me,by:me,at:Date.now()}));
   if(!ok){renderRotation();return;}
