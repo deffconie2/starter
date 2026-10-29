@@ -70,6 +70,7 @@ const CFG=window.ODPRAWY_CONFIG||{};
 let db=null, auth=null, canWrite=true, connected=false, offlineMsg="Łączę z tablicą…";
 let unsubs=[];
 let resets={};
+let fbApi=null;
 let tasks=[], comments=[], odprawy=[];
 const loaded={tasks:false,comments:false};
 // with Firebase the person comes from the signed-in account; the picker is only for demo mode
@@ -444,6 +445,7 @@ function openWho(){
   box.classList.toggle("acct",!!user);
   $("#who-foot").hidden=!user;
   confirmReset=false; renderResetBtn();
+  closePwForm(); $("#pw-btn").hidden=!user;
   $("#who-acct").textContent=user?user.email:"";
   $("#who").hidden=false;
   requestAnimationFrame(()=>{const b=$("#who .sheet").querySelector("button");if(b)b.focus();});
@@ -455,6 +457,35 @@ $("#me-btn").addEventListener("click",openWho);
 $("#rot-btn").addEventListener("click",logOdprawa);
 $("#logout-btn").addEventListener("click",()=>{$("#who").hidden=true;if(auth)auth.signOut();});
 let confirmReset=false, resetTimer=null;
+function closePwForm(){
+  $("#pw-form").hidden=true; $("#pw-form").reset(); $("#pw-err").textContent="";
+  $("#pw-btn").setAttribute("aria-expanded","false");
+}
+$("#pw-btn").addEventListener("click",()=>{
+  if(!$("#pw-form").hidden){closePwForm();return;}
+  $("#pw-form").hidden=false; $("#pw-btn").setAttribute("aria-expanded","true");
+  $("#pw-user").value=auth&&auth.currentUser?auth.currentUser.email:"";
+  $("#pw-cur").focus();
+});
+$("#pw-form").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const cur=$("#pw-cur").value, nw=$("#pw-new").value, err=$("#pw-err");
+  if(nw!==$("#pw-new2").value){err.textContent="Nowe hasła się różnią.";return;}
+  if(nw===cur){err.textContent="Nowe hasło musi być inne niż obecne.";return;}
+  const btn=$("#pw-send"); btn.disabled=true; err.textContent="";
+  try{
+    await fbApi.changePassword(cur,nw);
+    closePwForm(); $("#who").hidden=true; toast("Hasło zmienione");
+  }catch(x){
+    const c=x&&x.code||"";
+    err.textContent=(c==="auth/wrong-password"||c==="auth/invalid-credential"||c==="auth/invalid-login-credentials")?"Obecne hasło jest nieprawidłowe."
+      :c==="auth/weak-password"?"Nowe hasło jest za słabe."
+      :c==="auth/too-many-requests"?"Za dużo prób. Odczekaj chwilę."
+      :c==="auth/network-request-failed"?"Brak internetu."
+      :"Nie udało się zmienić hasła.";
+  }
+  btn.disabled=false;
+});
 function renderResetBtn(){
   const b=$("#reset-btn"); b.hidden=!me||!connected||!canWrite;
   b.textContent=confirmReset?"Na pewno? Kliknij jeszcze raz":"Wyzeruj moje punkty";
@@ -533,7 +564,7 @@ renderAll();
   let fb;
   try{ fb=await OdprawyStore.firebase(CFG.firebase); }
   catch(e){ offlineMsg="Nie udało się połączyć z serwerem tablicy."; banner("Nie załadowano Firebase. Sprawdź internet i odśwież stronę."); renderCols(); return; }
-  auth=fb.auth;
+  auth=fb.auth; fbApi=fb;
   auth.onAuthStateChanged(async user=>{
     if(!user){ stop(); me=null; $("#who").hidden=true; offlineMsg="Zaloguj się, żeby zobaczyć tablicę."; banner(""); renderAll(); showLogin(); return; }
     $("#login").hidden=true;

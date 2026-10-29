@@ -53,7 +53,13 @@ async function firebase(cfg){
   const auth=app.auth();
   // stay signed in on this device until "Wyloguj" (survives closing the browser)
   await auth.setPersistence(window.firebase.auth.Auth.Persistence.LOCAL);
-  return {auth,db:app.firestore()};
+  // Firebase demands a fresh sign-in before a password change, so confirm the current one first
+  async function changePassword(current,next){
+    const u=auth.currentUser;
+    await u.reauthenticateWithCredential(window.firebase.auth.EmailAuthProvider.credential(u.email,current));
+    await u.updatePassword(next);
+  }
+  return {auth,db:app.firestore(),changePassword};
 }
 
 return {local,firebase};
