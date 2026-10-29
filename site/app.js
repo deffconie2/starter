@@ -188,7 +188,7 @@ function renderFilters(){
   const doneN=tasks.filter(t=>t.kind==="task"&&t.done).length;
   const db_=$("#done-btn");
   db_.setAttribute("aria-pressed",String(showDone));
-  db_.replaceChildren(showDone?"Ukryj zrobione":"Pokaż zrobione",doneN?h("span",{class:"n"},String(doneN)):null);
+  db_.replaceChildren(showDone?"Ukryj zrobione":"Pokaż zrobione",...(doneN?[h("span",{class:"n"},String(doneN))]:[]));
 }
 
 /* render: columns */
