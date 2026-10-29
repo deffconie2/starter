@@ -54,6 +54,8 @@ const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const todayStr=()=>ymd(new Date());
 const tomorrowStr=()=>{const d=new Date();d.setDate(d.getDate()+1);return ymd(d)};
 const endOfDay=s=>new Date(s+"T23:59:59").getTime();
+const DUE_MIN="2020-01-01", DUE_MAX="2099-12-31";
+const dueOk=v=>!v||(v>=DUE_MIN&&v<=DUE_MAX);
 function weekStart(){const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7));return d.getTime();}
 const timeLabel=ts=>new Date(ts).toLocaleTimeString("pl-PL",{hour:"2-digit",minute:"2-digit"});
 function shortDay(ts){const d=ymd(new Date(ts));if(d===todayStr())return "dziś "+timeLabel(ts);return new Date(ts).toLocaleDateString("pl-PL",{weekday:"short",day:"numeric",month:"short"});}
@@ -269,10 +271,15 @@ function card(t,cs,sec){
           ?h("button",{class:"act danger",type:"button",onclick:()=>removeItem(t)},"Na pewno usunąć?")
           :h("button",{class:"act icon",type:"button","aria-label":"Usuń wpis",title:"Usuń",onclick:()=>{confirmDel.add(t.id);renderCols();setTimeout(()=>{if(confirmDel.delete(t.id))renderCols();},4000);},html:ICON.trash})
       ));
-      if(openDue.has(t.id)) ext.append(h("div",{class:"due-edit"},
-        h("label",{for:"due-"+t.id},"Termin"),
-        h("input",{type:"date",id:"due-"+t.id,value:t.due||"",onchange:e=>setDue(t,e.target.value)}),
-        t.due?h("button",{class:"act",type:"button",onclick:()=>setDue(t,"")},"Bez terminu"):null));
+      if(openDue.has(t.id)){
+        // saved only on Zapisz/Enter: typing a year fires change after its first digit (e.g. 0002)
+        const dueIn=h("input",{type:"date",id:"due-"+t.id,value:t.due||"",min:DUE_MIN,max:DUE_MAX,onkeydown:e=>{if(e.key==="Enter"){e.preventDefault();setDue(t,dueIn.value);}}});
+        ext.append(h("div",{class:"due-edit"},
+          h("label",{for:"due-"+t.id},"Termin"),
+          dueIn,
+          h("button",{class:"act primary",type:"button",onclick:()=>setDue(t,dueIn.value)},"Zapisz"),
+          t.due?h("button",{class:"act",type:"button",onclick:()=>setDue(t,"")},"Bez terminu"):null));
+      }
     }
     if(cs.length||openThreads.has(t.id)){
       const th=h("div",{class:"thread"});
@@ -308,7 +315,7 @@ function renderAll(){renderMe();renderBoard();renderRotation();renderFilters();r
 /* feedback */
 let toastTimer=null;
 function toast(msg,pts){
-  const el=$("#toast"); el.replaceChildren(pts?h("span",{class:"pts"},pts+" "):null,msg);
+  const el=$("#toast"); el.replaceChildren(...(pts?[h("span",{class:"pts"},pts+" ")]:[]),msg);
   el.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove("show"),2600);
 }
 function banner(msg,info){const b=$("#banner");b.textContent=msg||"";b.hidden=!msg;b.classList.toggle("info",!!info);}
@@ -351,6 +358,7 @@ function needMe(){ if(!me){openWho();return true;} return false; }
 async function addItem(){
   if(needMe()) return;
   const ta=$("#c-text"), text=ta.value.trim(); if(!text) return;
+  if(!dueOk($("#c-due").value)){toast("Sprawdź termin: rok "+DUE_MIN.slice(0,4)+"–"+DUE_MAX.slice(0,4));$("#c-due").focus();return;}
   const prio=SEC[$("#c-sec").value]?$("#c-sec").value:"biezace";
   const doc={kind,text:text.slice(0,600),by:me,to:$("#c-to").value||null,due:$("#c-due").value||null,prio,done:false,doneBy:null,doneAt:null,createdAt:Date.now()};
   const ref=db.collection("tasks").doc();
@@ -383,6 +391,7 @@ async function toggleDone(t){
 }
 async function setDue(t,val){
   if(needMe()||busy.has(t.id)) return;
+  if(!dueOk(val)){toast("Sprawdź datę: rok "+DUE_MIN.slice(0,4)+"–"+DUE_MAX.slice(0,4));focusLater("due-"+t.id);return;}
   busy.add(t.id);
   const ok=await write(()=>db.doc("tasks/"+t.id).update({due:val||null}));
   busy.delete(t.id);
