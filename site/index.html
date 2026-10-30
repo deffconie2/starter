@@ -19,6 +19,10 @@
   --info-bg:#fff1d0; --info:#6b4a00;
   --t-pilne:#c3412f; --t-wazne:#d48a0c; --t-biezace:#2b7f9e;
   --p-paula:#cf4f78; --p-kamil:#2f74c0; --p-michal:#2b8a6c; --on-person:#ffffff;
+  --f-atalian:#b45309; --f-atalian-bg:#fff3e6; --f-atalian-line:#f4cfa4;
+  --f-amlux:#2563a8;   --f-amlux-bg:#eaf2fc;   --f-amlux-line:#bcd3ef;
+  --f-impel:#23784a;   --f-impel-bg:#e8f6ed;   --f-impel-line:#b8dfc6;
+  --f-urw:#c8102e;     --f-urw-bg:#fdeaec;     --f-urw-line:#f6bcc3;
   --f-display:"Unbounded","Onest",system-ui,sans-serif;
   --f-body:"Onest",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   color-scheme:light;
@@ -31,6 +35,10 @@
   --info-bg:#3a331d; --info:#f4d58c;
   --t-pilne:#ef6d58; --t-wazne:#f4b23c; --t-biezace:#5fb0cf;
   --p-paula:#d9607f; --p-kamil:#3f82cc; --p-michal:#2f9677; --on-person:#ffffff;
+  --f-atalian:#f6a95c; --f-atalian-bg:#33261a; --f-atalian-line:#5c4026;
+  --f-amlux:#7fb2ec;   --f-amlux-bg:#1a2838;   --f-amlux-line:#2d4664;
+  --f-impel:#6fcf97;   --f-impel-bg:#18301f;   --f-impel-line:#2b5237;
+  --f-urw:#ff6b7c;     --f-urw-bg:#38191d;     --f-urw-line:#642a32;
   color-scheme:dark;
 }}
 :root[data-theme="dark"]{
@@ -41,6 +49,10 @@
   --info-bg:#3a331d; --info:#f4d58c;
   --t-pilne:#ef6d58; --t-wazne:#f4b23c; --t-biezace:#5fb0cf;
   --p-paula:#d9607f; --p-kamil:#3f82cc; --p-michal:#2f9677; --on-person:#ffffff;
+  --f-atalian:#f6a95c; --f-atalian-bg:#33261a; --f-atalian-line:#5c4026;
+  --f-amlux:#7fb2ec;   --f-amlux-bg:#1a2838;   --f-amlux-line:#2d4664;
+  --f-impel:#6fcf97;   --f-impel-bg:#18301f;   --f-impel-line:#2b5237;
+  --f-urw:#ff6b7c;     --f-urw-bg:#38191d;     --f-urw-line:#642a32;
   color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:border-box}
@@ -144,6 +156,14 @@ button,input,select{font-family:inherit}
 /* cards */
 .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:6px;box-shadow:0 1px 0 var(--shadow)}
 .card.note{background:var(--note)}
+/* company tints: light wash on the card, stronger color on the name tag */
+.firm-atalian{--fb:var(--f-atalian-bg);--fl:var(--f-atalian-line);--ft:var(--f-atalian)}
+.firm-amlux{--fb:var(--f-amlux-bg);--fl:var(--f-amlux-line);--ft:var(--f-amlux)}
+.firm-impel{--fb:var(--f-impel-bg);--fl:var(--f-impel-line);--ft:var(--f-impel)}
+.firm-urw{--fb:var(--f-urw-bg);--fl:var(--f-urw-line);--ft:var(--f-urw)}
+.card[class*="firm-"]{background:var(--fb);border-color:var(--fl)}
+.firm-tag{font-size:10.5px;font-weight:700;letter-spacing:.02em;padding:1px 6px;border-radius:5px;color:var(--ft);border:1px solid var(--fl);background:var(--card);white-space:nowrap}
+.firm-move .seg button[class*="firm-"][aria-pressed="true"]{background:var(--fb);color:var(--ft);box-shadow:0 0 0 1px var(--fl) inset}
 .card.dragging{opacity:.45}
 .card[draggable="true"]{cursor:grab}
 .row{display:flex;gap:8px;align-items:flex-start}
@@ -263,7 +283,7 @@ button,input,select{font-family:inherit}
       <select id="c-sec"><option value="pilne">Pilne</option><option value="wazne">Ważne</option><option value="biezace">Bieżące</option></select>
     </label>
     <label class="c-field" for="c-to">Dla
-      <select id="c-to"><option value="">—</option><option value="paula">Paula</option><option value="kamil">Kamil</option><option value="michal">Michał</option></select>
+      <select id="c-to"><option value="">—</option><option value="atalian">Atalian</option><option value="amlux">Amlux</option><option value="impel">Impel</option><option value="urw">URW</option></select>
     </label>
     <label class="c-field" for="c-due">Termin
       <input type="date" id="c-due" min="2026-01-01" max="2099-12-31">

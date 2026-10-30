@@ -12,6 +12,9 @@ const SECTIONS=[
   {k:"biezace", label:"Bieżące", hint:"Rutyna i drobne sprawy",            tone:"var(--t-biezace)"},
 ];
 const SEC=Object.fromEntries(SECTIONS.map(s=>[s.k,s]));
+// companies a task is for; each tints its card (colors live in CSS as .firm-<id>)
+const FIRMS=[{id:"atalian",name:"Atalian"},{id:"amlux",name:"Amlux"},{id:"impel",name:"Impel"},{id:"urw",name:"URW"}];
+const F=Object.fromEntries(FIRMS.map(f=>[f.id,f]));
 const PTS={add:2,done:5,ontime:1,comment:1,odprawa:10,due:1};
 const LEVELS=[[0,"Stażysta"],[20,"Technik"],[50,"Starszy technik"],[90,"Brygadzista"],[140,"Kierownik zmiany"],[200,"Inżynier obiektu"],[280,"Dyrektor techniczny"]];
 const BADGES=[
@@ -87,7 +90,7 @@ const startSec=load("sec"); if(SEC[startSec]) $("#c-sec").value=startSec; else $
 
 const isOpenTask=t=>t.kind==="task"&&!t.done;
 const prioOf=t=>SEC[t.prio]?t.prio:(isOpenTask(t)&&t.due&&t.due<=todayStr()?"pilne":"biezace");
-const ownerOf=t=>t.to||t.by;
+const ownerOf=t=>t.by;
 function visible(t){
   if(t.kind==="task"&&t.done&&!showDone) return false;
   if(who!=="all"&&ownerOf(t)!==who) return false;
@@ -255,7 +258,7 @@ function card(t,cs,sec){
   const meta=h("span",{class:"meta"},
     t.due?h("span",{class:"due"+(overdue?" late":dueToday?" today":""),title:overdue?"Po terminie":"Termin"},dueShort(t.due)):null,
     cs.length?h("span",{class:"cc",title:"Komentarze"},ic("chat"),String(cs.length)):null,
-    (t.to&&T[t.to])?h("span",{title:"Dla "+T[t.to].dla,style:"display:inline-flex"},av(t.to,"sm")):null
+    F[t.firm]?h("span",{class:"firm-tag",title:"Dla: "+F[t.firm].name},F[t.firm].name):null
   );
   const row=h("div",{class:"row"},
     isTask?h("button",{class:"tick-box"+(t.done?" on":""),type:"button",disabled:!canWrite,"aria-label":t.done?"Otwórz zadanie ponownie":"Oznacz jako zrobione",onclick:()=>toggleDone(t),html:ICON.check}):h("span",{class:"note-mark"},"Not."),
@@ -267,13 +270,16 @@ function card(t,cs,sec){
     const ext=h("div",{class:"ext"});
     ext.append(h("div",{class:"info"},
       (author?(author.f?"Dodała ":"Dodał ")+author.name:"Dodane")+" · "+shortDay(t.createdAt),
-      (t.to&&T[t.to])?" · dla "+T[t.to].dla:"",
+      F[t.firm]?" · dla "+F[t.firm].name:"",
       overdue?" · po terminie":"",
       (isTask&&t.done&&T[t.doneBy])?h("span",{class:"ok"}," · "+(T[t.doneBy].f?"zamknęła ":"zamknął ")+T[t.doneBy].name+" "+shortDay(t.doneAt)):null));
     if(canWrite){
       ext.append(h("div",{class:"move"},"Kolumna",
         h("div",{class:"seg",role:"group","aria-label":"Przenieś do kolumny"},
           SECTIONS.map(s=>h("button",{type:"button","aria-pressed":String(s.k===sec.k),style:"--tone:"+s.tone,onclick:()=>{if(s.k!==sec.k)setPrio(t,s.k);}},s.label)))));
+      ext.append(h("div",{class:"move firm-move"},"Dla",
+        h("div",{class:"seg",role:"group","aria-label":"Dla firmy"},
+          [{id:null,name:"—"},...FIRMS].map(f=>h("button",{type:"button",class:f.id?"firm-"+f.id:null,"aria-pressed":String((F[t.firm]?t.firm:null)===f.id),"aria-label":f.id?f.name:"Bez firmy",onclick:()=>{if((F[t.firm]?t.firm:null)!==f.id)setFirm(t,f.id);}},f.name)))));
       ext.append(h("div",{class:"acts"},
         isTask?h("button",{class:"act"+(t.done?"":" primary"),type:"button",onclick:()=>toggleDone(t)},ic("check"),t.done?"Otwórz":"Zrobione"):null,
         h("button",{class:"act",type:"button","aria-expanded":String(openThreads.has(t.id)),onclick:()=>{toggle(openThreads,t.id);renderCols();focusLater("cm-"+t.id);}},ic("chat"),cs.length?"Komentarz · "+cs.length:"Komentarz"),
@@ -303,7 +309,7 @@ function card(t,cs,sec){
     }
     kids.push(ext);
   }
-  const el=h("article",{class:"card "+t.kind+(t.done?" done":"")+(isOpen?" open":""),role:"listitem","data-id":t.id,draggable:canWrite&&connected?"true":null},kids);
+  const el=h("article",{class:"card "+t.kind+(t.done?" done":"")+(isOpen?" open":"")+(F[t.firm]?" firm-"+t.firm:""),role:"listitem","data-id":t.id,draggable:canWrite&&connected?"true":null},kids);
   el.addEventListener("dragstart",e=>{
     if(e.target.closest&&e.target.closest("input,form")){e.preventDefault();return;}
     dragId=t.id; try{e.dataTransfer.setData("text/plain",t.id);e.dataTransfer.effectAllowed="move";}catch(_){}
@@ -372,13 +378,20 @@ async function addItem(){
   if(!dueOk($("#c-due").value)){toast("Sprawdź termin: rok "+DUE_MIN.slice(0,4)+"–"+DUE_MAX.slice(0,4));$("#c-due").focus();return;}
   const prio=SEC[$("#c-sec").value]?$("#c-sec").value:"biezace";
   const now=Date.now(), due=$("#c-due").value||null, dueCounts=kind==="task"&&!!due;
-  const doc={kind,text:text.slice(0,600),by:me,to:$("#c-to").value||null,due,dueBy:due?me:null,dueAt:due?now:null,prio,done:false,doneBy:null,doneAt:null,createdAt:now};
+  const doc={kind,text:text.slice(0,600),by:me,firm:F[$("#c-to").value]?$("#c-to").value:null,due,dueBy:due?me:null,dueAt:due?now:null,prio,done:false,doneBy:null,doneAt:null,createdAt:now};
   const ref=db.collection("tasks").doc();
   ta.value=""; $("#c-due").value=""; $("#c-to").value="";
   if(!visible({...doc,id:ref.id})){who="all";save("person","all");q="";$("#q").value="";renderFilters();}
   const ok=await write(()=>ref.set(doc));
   if(ok) toast(T[me].name+" · "+(kind==="task"?"dodane do: ":"notatka w: ")+SEC[prio].label,"+"+(PTS.add+(dueCounts?PTS.due:0))+" pkt");
   else ta.value=text;
+}
+async function setFirm(t,f){
+  if(needMe()||busy.has(t.id)) return;
+  busy.add(t.id);
+  const ok=await write(()=>db.doc("tasks/"+t.id).update({firm:f||null}));
+  busy.delete(t.id);
+  if(ok) toast(f?"Dla: "+F[f].name:"Bez firmy");
 }
 async function setPrio(t,p){
   if(needMe()||busy.has(t.id)||!SEC[p]) return;
