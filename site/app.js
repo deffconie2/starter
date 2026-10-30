@@ -15,6 +15,7 @@ const SEC=Object.fromEntries(SECTIONS.map(s=>[s.k,s]));
 // companies a task is for; each tints its card (colors live in CSS as .firm-<id>)
 const FIRMS=[{id:"atalian",name:"Atalian"},{id:"amlux",name:"Amlux"},{id:"impel",name:"Impel"},{id:"urw",name:"URW"}];
 const F=Object.fromEntries(FIRMS.map(f=>[f.id,f]));
+const DEFAULT_FIRM="atalian"; // new entries start assigned to Atalian; changed by hand if needed
 const PTS={add:2,done:5,ontime:1,comment:1,odprawa:10,due:1};
 const LEVELS=[[0,"Stażysta"],[20,"Technik"],[50,"Starszy technik"],[90,"Brygadzista"],[140,"Kierownik zmiany"],[200,"Inżynier obiektu"],[280,"Dyrektor techniczny"]];
 const BADGES=[
@@ -380,7 +381,7 @@ async function addItem(){
   const now=Date.now(), due=$("#c-due").value||null, dueCounts=kind==="task"&&!!due;
   const doc={kind,text:text.slice(0,600),by:me,firm:F[$("#c-to").value]?$("#c-to").value:null,due,dueBy:due?me:null,dueAt:due?now:null,prio,done:false,doneBy:null,doneAt:null,createdAt:now};
   const ref=db.collection("tasks").doc();
-  ta.value=""; $("#c-due").value=""; $("#c-to").value="";
+  ta.value=""; $("#c-due").value=""; $("#c-to").value=DEFAULT_FIRM;
   if(!visible({...doc,id:ref.id})){who="all";save("person","all");q="";$("#q").value="";renderFilters();}
   const ok=await write(()=>ref.set(doc));
   if(ok) toast(T[me].name+" · "+(kind==="task"?"dodane do: ":"notatka w: ")+SEC[prio].label,"+"+(PTS.add+(dueCounts?PTS.due:0))+" pkt");
